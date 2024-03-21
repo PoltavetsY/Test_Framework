@@ -13,6 +13,12 @@ def make_valid_payload(method: str, params: dict | None = None) -> dict:
     return payload
 
 
+def make_valid_request(method: str, params: dict | None = None) -> dict:
+    payload = make_valid_payload(method=method, params=params)
+    sensor_response = send_post(**payload)
+    return sensor_response.get("result", {})
+
+
 # def send_post(method: Optional[str] = None, params: Optional[dict] = None, jsonrpc: Optional[str] = None, id: Optional[int] = None):
 def send_post(method: str| None = None, params: dict | None = None, jsonrpc: str |None = None, id: int | None = None):
     request_body = {}
@@ -39,17 +45,12 @@ def send_post(method: str| None = None, params: dict | None = None, jsonrpc: str
 
 
 def get_sensor_info():
-    payload = make_valid_payload(method="get_info")
-    sensor_response = send_post(**payload)
-    sensor_info = sensor_response.get("result", {})
-    return sensor_info
+    return make_valid_request("get_info")
 
 
 def get_sensor_reading():
-    payload = make_valid_payload(method="get_reading")
-    sensor_response = send_post(**payload)
-    sensor_reading = sensor_response.get("result", {})
-    return sensor_reading
+    return make_valid_request("get_reading")
+    
 
 
 def test_sanity():
