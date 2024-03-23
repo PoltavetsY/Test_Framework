@@ -1,61 +1,6 @@
-import requests
-from requests.exceptions import JSONDecodeError
-# from typing import Optional
-
-
-# def make_valid_payload(method: str, params: Optional[dict] = None) -> dict:
-def make_valid_payload(method: str, params: dict | None = None) -> dict:
-    payload = {"method": method, "jsonrpc": "2.0", "id": 1}
-
-    if params:
-        payload["params"] = params
-
-    return payload
-
-
-def make_valid_request(method: str, params: dict | None = None) -> dict:
-    payload = make_valid_payload(method=method, params=params)
-    sensor_response = send_post(**payload)
-    return sensor_response.get("result", {})
-
-
-# def send_post(method: Optional[str] = None, params: Optional[dict] = None, jsonrpc: Optional[str] = None, id: Optional[int] = None):
-def send_post(method: str| None = None, params: dict | None = None, jsonrpc: str |None = None, id: int | None = None):
-    request_body = {}
-
-    if method:
-        request_body["method"] = method
-
-    if params:
-        request_body["params"] = params
-
-    if jsonrpc:
-        request_body["jsonrpc"] = jsonrpc
-
-    if id:
-        request_body["id"] = id
-
-    request_headers = {"Authorization": "0000"}
-    res = requests.post("http://127.0.0.1:9898/rpc", json=request_body, headers=request_headers)
-
-    try:
-        return res.json()
-    except JSONDecodeError:
-        return {}
-
-
-def get_sensor_info():
-    return make_valid_request("get_info")
-
-
-def get_sensor_reading():
-    return make_valid_request("get_reading")
-    
-
-
-def test_sanity():
+def test_sanity(get_sensor_info, get_sensor_reading, set_sensor_name, set_sensor_reading_interval, reset_sensor_to_factory, update_sensor_firmware, reboot_sensor):
     sensor_info = get_sensor_info()
-
+    
     sensor_name = sensor_info.get("name")
     assert isinstance(sensor_name, str), "Sensor name is not a string"
 
