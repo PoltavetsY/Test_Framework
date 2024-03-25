@@ -1,7 +1,7 @@
 import pytest
 from enum import Enum
 import requests
-
+from time import sleep
 
 class SensorMethod(Enum):
     GET_INFO = "get_info"
@@ -148,3 +148,13 @@ def reboot_sensor(make_valid_request):
         return make_valid_request(SensorMethod.REBOOT)
 
     return inner
+
+def wait(func: callable, condition: callable, tries: int, timeout: int, **kwargs):
+    for _ in range(tries):
+        try: 
+            result = func(**kwargs)
+
+            if condition(result):
+                return result
+        except Exception as e:
+            sleep(timeout)    
