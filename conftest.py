@@ -2,6 +2,10 @@ import pytest
 from enum import Enum
 import requests
 from time import sleep
+import logging
+
+log = logging.getLogger(__name__)
+
 
 class SensorMethod(Enum):
     GET_INFO = "get_info"
@@ -57,7 +61,7 @@ def sensor_pin(request):
 
 @pytest.fixture(scope="session")
 def send_post(sensor_host, sensor_port, sensor_pin):
-    def inner(
+    def _send_post(
         method: SensorMethod | None = None,
         params: dict | None = None,
         jsonrpc: str | None = None,
@@ -86,98 +90,139 @@ def send_post(sensor_host, sensor_port, sensor_pin):
 
         return res.json()
 
-    return inner
+    return _send_post
 
 
 @pytest.fixture(scope="session")
 def make_valid_request(send_post):
-    def inner(method: SensorMethod, params: dict | None = None) -> dict:
+    def _make_valid_request(method: SensorMethod, params: dict | None = None) -> dict:
         payload = make_valid_payload(method=method, params=params)
         sensor_response = send_post(**payload)
         return sensor_response.get("result", {})
 
-    return inner
+    return _make_valid_request
 
 
 @pytest.fixture(scope="session")
 def get_sensor_info(make_valid_request):
-    def inner():
+    def _get_sensor_info():
+        log.info("Get sensor info")
         return make_valid_request(SensorMethod.GET_INFO)
 
-    return inner
-
-
-@pytest.fixture
-def get_sensor_reading(make_valid_request):
-    def inner():
-        return make_valid_request(SensorMethod.GET_READING)
-
-    return inner
-
-
-@pytest.fixture
-def set_sensor_name(make_valid_request):
-    def inner(name: str):
-        return make_valid_request(SensorMethod.SET_NAME, {"name": name})
-
-    return inner
-
-
-@pytest.fixture
-def get_sensor_methods(make_valid_request):
-    def inner():
-        return make_valid_request(SensorMethod.GET_METHODS)
-
-    return inner
-
-
-@pytest.fixture
-def set_sensor_reading_interval(make_valid_request):
-    def inner(reading_interval: int):
-        return make_valid_request(SensorMethod.SET_READING_INTERVAL, {"interval": reading_interval})
-
-    return inner
+    return _get_sensor_info
 
 
 @pytest.fixture(scope="session")
-def reset_sensor_to_factory(make_valid_request):
-    def inner():
-        return make_valid_request(SensorMethod.RESET_TO_FACTORY)
+def get_sensor_reading(make_valid_request):
+    def _get_sensor_reading():
+        log.info("Get sensor reading")
+        return make_valid_request(SensorMethod.GET_READING)
 
-    return inner
+    return _get_sensor_reading
 
 
-@pytest.fixture
+@pytest.fixture(scope="session")
+def set_sensor_name(make_valid_request):
+    def _set_sensor_name(name: str):
+        log.info("Set sensor name to %s", name)
+        return make_valid_request(SensorMethod.SET_NAME, {"name": name})
+
+    return _set_sensor_name
+
+
+@pytest.fixture(scope="session")
+def get_sensor_methods(make_valid_request):
+    def _get_sensor_methods():
+        log.info("Get sensor methods")
+        return make_valid_request(SensorMethod.GET_METHODS)
+
+    return _get_sensor_methods
+
+
+@pytest.fixture(scope="session")
+def set_sensor_reading_interval(make_valid_request):
+    def _set_sensor_reading_interval(reading_interval: int):
+        log.info("Set sensor reading interval to %d seconds", reading_interval)
+        return make_valid_request(SensorMethod.SET_READING_INTERVAL, {"interval": reading_interval})
+
+    return _set_sensor_reading_interval
+
+
+@pytest.fixture(scope="session")
+def reset_sensor_to_factory(make_valid_request, get_sensor_info):
+    def _reset_sensor_to_factory():
+        log.info("Send reset firmware request to sensor")
+        sensor_response = make_valid_request(SensorMethod.RESET_TO_FACTORY)
+        if sensor_response != "resetting":
+            raise RuntimeError(
+                "Sensor didn't respond to factory reset properly"
+            )
+
+        sensor_info = wait(
+            get_sensor_info, lambda x: isinstance(x, dict), tries=15, timeout=1
+        )
+        if not sensor_info:
+            raise RuntimeError("Sensor didn't reset to factory property")
+
+        return sensor_info
+    return _reset_sensor_to_factory
+
+
+@pytest.fixture(scope="session")
 def update_sensor_firmware(make_valid_request):
-    def inner():
+    def _update_sensor_firmware():
+        log.info("Send firmware update request to sensor")
         return make_valid_request(SensorMethod.UPDATE_FIRMWARE)
 
-    return inner
+    return _update_sensor_firmware
 
 
-@pytest.fixture
+@pytest.fixture(scope="session")
 def reboot_sensor(make_valid_request):
-    def inner():
+    def _reboot_sensor():
+        log.info("Send reboot request to sensor")
         return make_valid_request(SensorMethod.REBOOT)
 
-    return inner
+    return _reboot_sensor
 
-
-@pytest.fixture(autouse=True, scope="session")
-def setup_test_session(reset_sensor_to_factory, get_sensor_info):
-    print("Resetting sensor to factory settings before test session")
-    reset_sensor_to_factory()
-    sensor_info = wait(get_sensor_info, lambda x: isinstance(x, dict), tries=15, timeout=1)
-    if not sensor_info:
-        raise RuntimeError("Sensor didn't reset to factory property")
-    
 
 def wait(func: callable, condition: callable, tries: int, timeout: int, **kwargs):
-    for _ in range(tries):
+    for i in range(tries):
         try: 
+            log.debug(
+                f"Calling function {func.__name__} with args {kwargs} - attempt {i + 1}"
+            )
             result = func(**kwargs)
 
+            log.debug(
+                f"Evaluating result of the call with function {condition.__name__}"
+            )
             if condition(result):
                 return result
         except Exception as e:
-            sleep(timeout)    
+            log.debug(f"Function call raised exception {e}, ignoring it")
+
+        log.debug(f"Sleeping for {timeout} seconds")
+        sleep(timeout)  
+          
+    log.debug(
+        "Exhausted all tries, condition evaluates to False, returning None"
+    )
+    return
+
+
+@pytest.fixture(scope="session")
+def factory_sensor_settings(reset_sensor_to_factory):
+    log.info("Reset sensor to factory defaults")
+    yield reset_sensor_to_factory()
+
+
+@pytest.fixture(autouse=True)
+def ensure_sensor_factory_settings(
+    factory_sensor_settings, reset_sensor_to_factory, get_sensor_info
+):
+    current_sensor_settings = get_sensor_info()
+    log.info("Ensure sensor has factory settings before starting test")
+    if current_sensor_settings != factory_sensor_settings:
+        log.info("Detected non-factory settings, resetting sensor")
+        reset_sensor_to_factory()
