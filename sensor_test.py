@@ -1,5 +1,6 @@
 import logging
 from conftest import wait
+from conftest import SensorInfo
 
 
 log = logging.getLogger(__name__)
@@ -16,21 +17,21 @@ def test_sanity(
 ):
     sensor_info = get_sensor_info()
 
-    sensor_name = sensor_info.get("name")
+    sensor_name = sensor_info.name
     assert isinstance(sensor_name, str), "Sensor name is not a string"
 
-    sensor_hid = sensor_info.get("hid")
+    sensor_hid = sensor_info.hid
     assert isinstance(sensor_hid, str), "Sensor hid is not a string"
 
-    sensor_model = sensor_info.get("model")
+    sensor_model = sensor_info.model
     assert isinstance(sensor_model, str), "Sensor model is not a string"
 
-    sensor_firmware_version = sensor_info.get("firmware_version")
+    sensor_firmware_version = sensor_info.firmware_version
     assert isinstance(
         sensor_firmware_version, int
     ), "Sensor firmware version is not a int"
 
-    sensor_reading_interval = sensor_info.get("reading_interval")
+    sensor_reading_interval = sensor_info.reading_interval
     assert isinstance(
         sensor_reading_interval, int
     ), "Sensor reading interval is not a string"
@@ -60,7 +61,7 @@ def test_reboot(get_sensor_info, reboot_sensor):
     log.info("Wait for sensor to come back online and get sensor info after reboot")
     sensor_info_after_reboot = wait(
         func=get_sensor_info,
-        condition=lambda x: isinstance(x, dict),
+        condition=lambda x: isinstance(x, SensorInfo),
         tries=10,
         timeout=1,
     )
@@ -84,7 +85,7 @@ def test_set_sensor_name(get_sensor_info, set_sensor_name):
     log.info("Get sensor_info")
     sensor_info = get_sensor_info()
 
-    current_sensor_name = sensor_info.get("name")
+    current_sensor_name = sensor_info.name
 
     log.info("Validate that current sensor name matches the name set in Step 1")
     assert (
@@ -111,7 +112,7 @@ def test_set_sensor_reading_interval(
 
     log.info("Validate that sensor reading interval is set to interval from Step 1")
     assert (
-        get_sensor_info().get("reading_interval") == reading_interval
+        get_sensor_info().reading_interval == reading_interval
     ), "Sensor reading interval is not set to interval from Step 1"
 
     log.info("Get sensor reading")
@@ -121,7 +122,7 @@ def test_set_sensor_reading_interval(
 
     sensor_reading_after_wait = wait(
         func=get_sensor_reading,
-        condition=lambda x: isinstance(x, dict),
+        condition=lambda x: isinstance(x, SensorInfo),
         tries=1,
         timeout=reading_interval,
     )
@@ -150,18 +151,18 @@ def test_update_sensor_firmware(get_sensor_info, update_sensor_firmware):
 
     def update_firmware():
         log.info("Get original sensor firmware version")
-        original_sensor_firmware_version = get_sensor_info().get("firmware_version")
+        original_sensor_firmware_version = get_sensor_info().firmware_version
         log.info("Request firmware update")
         update_sensor_firmware()
 
         log.info("Get current sensor firmware version")
         wait(
             func=get_sensor_info,
-            condition=lambda x: isinstance(x, dict),
+            condition=lambda x: isinstance(x, SensorInfo),
             tries=13,
             timeout=1,
         )
-        current_sensor_firmware_version = get_sensor_info().get("firmware_version")
+        current_sensor_firmware_version = get_sensor_info().firmware_version
 
         log.info(
             "Validate that current firmware version is +1 to original firmware version"
@@ -188,7 +189,7 @@ def test_update_sensor_firmware(get_sensor_info, update_sensor_firmware):
 
     log.info("Request another firmware update")
     update_response_when_sensor_at_max_version = update_sensor_firmware()
-    current_sensor_firmware_version = get_sensor_info().get("firmware_version")
+    current_sensor_firmware_version = get_sensor_info().firmware_version
 
     log.info("Validate that sensor does not update and responds appropriately")
     assert (

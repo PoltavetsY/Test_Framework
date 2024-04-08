@@ -3,8 +3,42 @@ from enum import Enum
 import requests
 from time import sleep
 import logging
+from dataclasses import dataclass
+
 
 log = logging.getLogger(__name__)
+
+
+@dataclass
+class SensorInfo:
+    name: str
+    hid: str
+    model: str
+    firmware_version: int
+    reading_interval: int
+
+    def __post_init__(self):
+
+        for item in ["name", "hid", "model"]:
+
+            if not isinstance(getattr(self, item), str):
+                raise TypeError(f"'{item}' should be a string")
+
+            if getattr(self, item) == "":
+                raise ValueError(f"'{item}' should not be empty")
+
+        for item in ["firmware_version", "reading_interval"]:
+
+            if not isinstance(getattr(self, item), int):
+                raise TypeError(f"'{item}' should be an integer")
+
+        if not 10 <= self.firmware_version <= 15:
+            raise ValueError(
+                "'firmware_version' should be from 10 to 15, both ends included"
+            )
+
+        if not self.reading_interval >= 1:
+            raise ValueError("'reading_interval' must be equal to or greater than 1")
 
 
 class SensorMethod(Enum):
@@ -18,9 +52,7 @@ class SensorMethod(Enum):
     REBOOT = "reboot"
 
 
-def make_valid_payload(
-    method: SensorMethod, params: dict | None = None
-) -> dict:
+def make_valid_payload(method: SensorMethod, params: dict | None = None) -> dict:
     payload = {"method": method, "jsonrpc": "2.0", "id": 1}
 
     if params:
@@ -39,9 +71,7 @@ def pytest_addoption(parser):
     parser.addoption(
         "--sensor-port", action="store", default="9898", help="Sensor port"
     )
-    parser.addoption(
-        "--sensor-pin", action="store", default="0000", help="Sensor pin"
-    )
+    parser.addoption("--sensor-pin", action="store", default="0000", help="Sensor pin")
 
 
 @pytest.fixture(scope="session")
@@ -107,7 +137,8 @@ def make_valid_request(send_post):
 def get_sensor_info(make_valid_request):
     def _get_sensor_info():
         log.info("Get sensor info")
-        return make_valid_request(SensorMethod.GET_INFO)
+        sensor_response = make_valid_request(SensorMethod.GET_INFO)
+        return SensorInfo(**sensor_response)
 
     return _get_sensor_info
 
@@ -143,7 +174,9 @@ def get_sensor_methods(make_valid_request):
 def set_sensor_reading_interval(make_valid_request):
     def _set_sensor_reading_interval(reading_interval: int):
         log.info("Set sensor reading interval to %d seconds", reading_interval)
-        return make_valid_request(SensorMethod.SET_READING_INTERVAL, {"interval": reading_interval})
+        return make_valid_request(
+            SensorMethod.SET_READING_INTERVAL, {"interval": reading_interval}
+        )
 
     return _set_sensor_reading_interval
 
@@ -154,17 +187,16 @@ def reset_sensor_to_factory(make_valid_request, get_sensor_info):
         log.info("Send reset firmware request to sensor")
         sensor_response = make_valid_request(SensorMethod.RESET_TO_FACTORY)
         if sensor_response != "resetting":
-            raise RuntimeError(
-                "Sensor didn't respond to factory reset properly"
-            )
+            raise RuntimeError("Sensor didn't respond to factory reset properly")
 
         sensor_info = wait(
-            get_sensor_info, lambda x: isinstance(x, dict), tries=15, timeout=1
+            get_sensor_info, lambda x: isinstance(x, SensorInfo), tries=15, timeout=1
         )
         if not sensor_info:
             raise RuntimeError("Sensor didn't reset to factory property")
 
         return sensor_info
+
     return _reset_sensor_to_factory
 
 
@@ -188,7 +220,7 @@ def reboot_sensor(make_valid_request):
 
 def wait(func: callable, condition: callable, tries: int, timeout: int, **kwargs):
     for i in range(tries):
-        try: 
+        try:
             log.debug(
                 f"Calling function {func.__name__} with args {kwargs} - attempt {i + 1}"
             )
@@ -203,11 +235,9 @@ def wait(func: callable, condition: callable, tries: int, timeout: int, **kwargs
             log.debug(f"Function call raised exception {e}, ignoring it")
 
         log.debug(f"Sleeping for {timeout} seconds")
-        sleep(timeout)  
-          
-    log.debug(
-        "Exhausted all tries, condition evaluates to False, returning None"
-    )
+        sleep(timeout)
+
+    log.debug("Exhausted all tries, condition evaluates to False, returning None")
     return
 
 
