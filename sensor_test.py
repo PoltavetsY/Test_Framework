@@ -1,3 +1,4 @@
+import pytest
 import logging
 from conftest import wait
 from conftest import SensorInfo
@@ -203,3 +204,47 @@ def test_update_sensor_firmware(get_sensor_info, update_sensor_firmware):
     assert (
         updated_sensor_firmware_version == current_sensor_firmware_version
     ), "Sensor changed its version when it was at the max version already and received an update request"
+
+
+@pytest.mark.parametrize("invalid_interval", [0.5, 0, -1])
+def test_set_invalid_sensor_reading_interval(get_sensor_info, set_sensor_reading_interval, invalid_interval):
+    """
+    Test Steps:
+        1. Get original sensor reading interval.
+        2. Set interval to < 1
+        3. Validate that sensor responds with an error.
+        4. Get current sensor reading interval.
+        5. Validate that sensor reading interval didn't change.
+    """
+    log.info('Get original sensor reading interval')
+    original_sensor_reading_interval = get_sensor_info().reading_interval
+
+    log.info('Set interval to < 1')
+    log.info('Validate that sensor responds with an error')
+    assert set_sensor_reading_interval(invalid_interval) == {}, 'sensor response does not contain an error'
+
+    log.info('Get current sensor reading interval')
+    log.info('Validate that sensor reading interval didn\'t change')
+    assert original_sensor_reading_interval == get_sensor_info().reading_interval, 'sensor reading interval has been changed'
+
+
+def test_set_empty_sensor_name(get_sensor_info, set_sensor_name):
+    """
+    Test Steps:
+        1. Get original sensor name.
+        2. Set sensor name to an empty string.
+        3. Validate that sensor responds with an error.
+        4. Get current sensor name.
+        5. Validate that sensor name didn't change.
+    """
+    log.info('Get original sensor name')
+    original_sensor_name = get_sensor_info().name
+
+    log.info('Set sensor name to an empty string')
+    log.info('Validate that sensor responds with an error')
+    assert set_sensor_name("") == {}, 'sensor response does not contain an error'
+
+    log.info('Get current sensor name')
+    log.info('Validate that sensor name didn\'t change')
+    assert original_sensor_name == get_sensor_info().name, 'sensor name has been changed'
+    
