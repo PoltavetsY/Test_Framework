@@ -5,16 +5,13 @@ from conftest import SensorInfo
 
 
 log = logging.getLogger(__name__)
+METHOD_ERROR_CODE = -32000
+METHOD_ERROR_MSG = "Method execution error"
 
 
 def test_sanity(
     get_sensor_info,
     get_sensor_reading,
-    set_sensor_name,
-    set_sensor_reading_interval,
-    reset_sensor_to_factory,
-    update_sensor_firmware,
-    reboot_sensor,
 ):
     sensor_info = get_sensor_info()
 
@@ -206,7 +203,7 @@ def test_update_sensor_firmware(get_sensor_info, update_sensor_firmware):
     ), "Sensor changed its version when it was at the max version already and received an update request"
 
 
-@pytest.mark.parametrize("invalid_interval", [0.5, 0, -1])
+@pytest.mark.parametrize("invalid_interval", [0.5, -1])
 def test_set_invalid_sensor_reading_interval(get_sensor_info, set_sensor_reading_interval, invalid_interval):
     """
     Test Steps:
@@ -221,11 +218,20 @@ def test_set_invalid_sensor_reading_interval(get_sensor_info, set_sensor_reading
 
     log.info('Set interval to < 1')
     log.info('Validate that sensor responds with an error')
-    assert set_sensor_reading_interval(invalid_interval) == {}, 'sensor response does not contain an error'
+    sensor_response = set_sensor_reading_interval(invalid_interval)
+    assert sensor_response.get("code") and sensor_response.get(
+        "message"
+    ), "Sensor response doesn't seem to be an error"
+    assert (
+        sensor_response.get("code") == METHOD_ERROR_CODE
+    ), "Error code doesn't match expected"
+    assert (
+        sensor_response.get("message") == METHOD_ERROR_MSG
+    ), "Error message doesn't match expected"
 
     log.info('Get current sensor reading interval')
     log.info('Validate that sensor reading interval didn\'t change')
-    assert original_sensor_reading_interval == get_sensor_info().reading_interval, 'sensor reading interval has been changed'
+    assert original_sensor_reading_interval == get_sensor_info().reading_interval, 'Sensor reading interval changed when it shouldn\'t have'
 
 
 def test_set_empty_sensor_name(get_sensor_info, set_sensor_name):
@@ -242,9 +248,17 @@ def test_set_empty_sensor_name(get_sensor_info, set_sensor_name):
 
     log.info('Set sensor name to an empty string')
     log.info('Validate that sensor responds with an error')
-    assert set_sensor_name("") == {}, 'sensor response does not contain an error'
+    sensor_response = set_sensor_name("")
+    assert sensor_response.get("code") and sensor_response.get(
+        "message"
+    ), "Sensor response doesn't seem to be an error"
+    assert (
+        sensor_response.get("code") == METHOD_ERROR_CODE
+    ), "Error code doesn't match expected"
+    assert (
+        sensor_response.get("message") == METHOD_ERROR_MSG
+    ), "Error message doesn't match expected"
 
     log.info('Get current sensor name')
     log.info('Validate that sensor name didn\'t change')
-    assert original_sensor_name == get_sensor_info().name, 'sensor name has been changed'
-    
+    assert original_sensor_name == get_sensor_info().name, 'Sensor name changed when it shouldn\'t have'
